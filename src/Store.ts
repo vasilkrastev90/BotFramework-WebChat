@@ -24,7 +24,7 @@ export const format: Reducer<FormatState> = (
         options: {
             showHeader: true
         },
-        strings: strings('en-us')
+        strings: strings(window.navigator.language)
     },
     action: FormatAction
 ) => {
@@ -58,13 +58,6 @@ export type ConnectionAction = {
 } | {
     type: 'Connection_Change',
     connectionStatus: ConnectionStatus
-/*  experimental backchannel support
-} | {
-    type: 'Unsubscribe_Host'
-} | {
-    type: 'Subscribe_Host',
-    host: Window
-*/
 }
 
 export const connection: Reducer<ConnectionState> = (
@@ -74,35 +67,23 @@ export const connection: Reducer<ConnectionState> = (
         selectedActivity: undefined,
         user: undefined,
         bot: undefined
-/*      experimental backchannel support
-        host: undefined
-*/
     },
     action: ConnectionAction
 ) => {
     switch (action.type) {
         case 'Start_Connection':
-            return Object.assign({}, state, {
-                connectionStatus: false,
+            return {
+                ... state,
                 botConnection: action.botConnection,
                 user: action.user,
                 bot: action.bot,
                 selectedActivity: action.selectedActivity
-            });
+            };
         case 'Connection_Change':
-            return Object.assign({}, state, {
+            return {
+                ... state,
                 connectionStatus: action.connectionStatus
-            });
-/*      experimental backchannel support
-        case 'Subscribe_Host':
-            return Object.assign({}, state, {
-                host: action.host
-            });
-        case 'Unsubscribe_Host':
-            return Object.assign({}, state, {
-                host: undefined
-            });
-*/
+            };
         default:
             return state;
     }
@@ -151,65 +132,75 @@ export const history: Reducer<HistoryState> = (
     switch (action.type) {
 
         case 'Update_Input':
-            return Object.assign({}, state, {
+            return {
+                ... state,
                 input: action.input
-            });
+            };
 
         case 'Receive_Sent_Message': {
+            if (!action.activity.channelData || !action.activity.channelData.clientActivityId) {
+                // only postBack messages don't have clientActivityId, and these shouldn't be added to the history
+                return state;
+            }
             const i = state.activities.findIndex(activity =>
-                activity.channelData && action.activity.channelData && activity.channelData.clientActivityId === action.activity.channelData.clientActivityId
+                activity.channelData && activity.channelData.clientActivityId === action.activity.channelData.clientActivityId
             );
             if (i !== -1) {
                 const activity = state.activities[i];
-                return Object.assign({}, state, {
+                return {
+                    ... state,
                     activities: [
                         ... state.activities.slice(0, i),
                         action.activity,
                         ... state.activities.slice(i + 1)
                     ],
                     selectedActivity: state.selectedActivity === activity ? action.activity : state.selectedActivity
-                });
+                };
             }
             // else fall through and treat this as a new message
         }
         case 'Receive_Message':
             if (state.activities.find(a => a.id === action.activity.id)) return state; // don't allow duplicate messages
 
-            return Object.assign({}, state, { 
+            return {
+                ... state, 
                 activities: [
                     ... state.activities.filter(activity => activity.type !== "typing"),
                     action.activity,
                     ... state.activities.filter(activity => activity.from.id !== action.activity.from.id && activity.type === "typing"),
                 ]
-            });
+            };
 
         case 'Send_Message':
-            return Object.assign({}, state, {
+            return {
+                ... state,
                 activities: [
                     ... state.activities.filter(activity => activity.type !== "typing"),
-                    Object.assign({}, action.activity, {
+                    {
+                        ... action.activity,
                         timestamp: (new Date()).toISOString(),
                         channelData: { clientActivityId: state.clientActivityBase + state.clientActivityCounter }
-                    }),
+                    },
                     ... state.activities.filter(activity => activity.type === "typing"),
                 ],
                 input: '',
                 clientActivityCounter: state.clientActivityCounter + 1
-            });
+            };
 
         case 'Send_Message_Try': {
             const activity = state.activities.find(activity =>
                 activity.channelData && activity.channelData.clientActivityId === action.clientActivityId
             );
-            const newActivity = activity.id === undefined ? activity : Object.assign({}, activity, { id: undefined });
-            return Object.assign({}, state, {
+            const newActivity = activity.id === undefined ? activity : { ... activity, id: undefined };
+            return {
+                ... state,
                 activities: [
                     ... state.activities.filter(activityT => activityT.type !== "typing" && activityT !== activity),
                     newActivity,
                     ... state.activities.filter(activity => activity.type === "typing")
                 ],
                 selectedActivity: state.selectedActivity === activity ? newActivity : state.selectedActivity
-            });
+            };
         }
         case 'Send_Message_Succeed':
         case 'Send_Message_Fail': {
@@ -221,10 +212,12 @@ export const history: Reducer<HistoryState> = (
             const activity = state.activities[i];
             if (activity.id && activity.id != "retry") return state;
 
-            const newActivity = Object.assign({}, activity, {
+            const newActivity = {
+                ... activity,
                 id: action.type === 'Send_Message_Succeed' ? action.id : null                        
-            })
-            return Object.assign({}, state, {
+            };
+            return {
+                ... state,
                 activities: [
                     ... state.activities.slice(0, i),
                     newActivity,
@@ -232,28 +225,31 @@ export const history: Reducer<HistoryState> = (
                 ],
                 clientActivityCounter: state.clientActivityCounter + 1,
                 selectedActivity: state.selectedActivity === activity ? newActivity : state.selectedActivity
-            });
+            };
         }
         case 'Show_Typing':
-            return Object.assign({}, state, { 
+            return {
+                ... state, 
                 activities: [
                     ... state.activities.filter(activity => activity.type !== "typing"),
                     ... state.activities.filter(activity => activity.from.id !== action.activity.from.id && activity.type === "typing"),
                     action.activity
                 ]
-            });
+            };
 
         case 'Clear_Typing':
-            return Object.assign({}, state, { 
+            return {
+                ... state, 
                 activities: state.activities.filter(activity => activity.id !== action.id),
                 selectedActivity: state.selectedActivity && state.selectedActivity.id === action.id ? null : state.selectedActivity
-            });
+            };
 
         case 'Select_Activity':
             if (action.selectedActivity === state.selectedActivity) return state;
-            return Object.assign({}, state, {
+            return {
+                ... state,
                 selectedActivity: action.selectedActivity
-            });
+            };
 
         default:
             return state;

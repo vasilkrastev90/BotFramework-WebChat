@@ -4,26 +4,43 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
-var React = require('react');
-var rxjs_1 = require('@reactivex/rxjs');
+var React = require("react");
+var rxjs_1 = require("@reactivex/rxjs");
 //import { BrowserLine } from './browserLine';
-var History_1 = require('./History');
-var Shell_1 = require('./Shell');
-var Store_1 = require('./Store');
-var Strings_1 = require('./Strings');
+var History_1 = require("./History");
+var Shell_1 = require("./Shell");
+var Store_1 = require("./Store");
+var Strings_1 = require("./Strings");
 var Chat = (function (_super) {
     __extends(Chat, _super);
     function Chat(props) {
-        var _this = this;
-        _super.call(this, props);
-        this.store = Store_1.createStore();
-        this.typingActivity$ = new rxjs_1.Subject();
+        var _this = _super.call(this, props) || this;
+        _this.store = Store_1.createStore();
+        _this.typingActivity$ = new rxjs_1.Subject();
         exports.konsole.log("BotChat.Chat props", props);
-        this.store.dispatch({ type: 'Start_Connection', user: props.user, bot: props.bot, botConnection: props.botConnection, selectedActivity: props.selectedActivity });
         if (props.formatOptions)
-            this.store.dispatch({ type: 'Set_Format_Options', options: props.formatOptions });
-        this.store.dispatch({ type: 'Set_Localized_Strings', strings: Strings_1.strings(props.locale || window.navigator.language) });
-        props.botConnection.start();
+            _this.store.dispatch({ type: 'Set_Format_Options', options: props.formatOptions });
+        _this.store.dispatch({ type: 'Set_Localized_Strings', strings: Strings_1.strings(props.locale || window.navigator.language) });
+        return _this;
+    }
+    Chat.prototype.handleIncomingActivity = function (activity) {
+        var state = this.store.getState();
+        switch (activity.type) {
+            case "message":
+                this.store.dispatch({ type: activity.from.id === state.connection.user.id ? 'Receive_Sent_Message' : 'Receive_Message', activity: activity });
+                break;
+            case "typing":
+                this.typingActivity$.next(activity);
+                break;
+        }
+    };
+    Chat.prototype.selectActivity = function (activity) {
+        this.props.selectedActivity.next({ activity: activity });
+    };
+    Chat.prototype.componentDidMount = function () {
+        var _this = this;
+        var props = this.props;
+        this.store.dispatch({ type: 'Start_Connection', user: props.user, bot: props.bot, botConnection: props.botConnection, selectedActivity: props.selectedActivity });
         this.connectionStatusSubscription = props.botConnection.connectionStatus$.subscribe(function (connectionStatus) {
             return _this.store.dispatch({ type: 'Connection_Change', connectionStatus: connectionStatus });
         });
@@ -46,41 +63,14 @@ var Chat = (function (_super) {
                 });
             });
         }
-    }
-    Chat.prototype.handleIncomingActivity = function (activity) {
-        var state = this.store.getState();
-        switch (activity.type) {
-            case "message":
-                if (activity.from.id === state.connection.user.id) {
-                    this.store.dispatch({ type: 'Receive_Sent_Message', activity: activity });
-                    break;
-                }
-                else if (activity.text && activity.text.endsWith("//typing")) {
-                    // 'typing' activity only available with WebSockets, so this allows us to test with polling GET
-                    activity = Object.assign({}, activity, { type: 'typing' });
-                }
-                else {
-                    this.store.dispatch({ type: 'Receive_Message', activity: activity });
-                    break;
-                }
-            case "typing":
-                this.typingActivity$.next(activity);
-                break;
-        }
-    };
-    Chat.prototype.selectActivity = function (activity) {
-        this.props.selectedActivity.next({ activity: activity });
-    };
-    Chat.prototype.componentDidMount = function () {
-        var _this = this;
         this.storeUnsubscribe = this.store.subscribe(function () {
             return _this.forceUpdate();
         });
     };
     Chat.prototype.componentWillUnmount = function () {
+        this.connectionStatusSubscription.unsubscribe();
         this.activitySubscription.unsubscribe();
         this.typingActivitySubscription.unsubscribe();
-        this.connectionStatusSubscription.unsubscribe();
         if (this.selectedActivitySubscription)
             this.selectedActivitySubscription.unsubscribe();
         this.props.botConnection.end();
@@ -92,13 +82,12 @@ var Chat = (function (_super) {
         var header;
         if (state.format.options.showHeader)
             header =
-                React.createElement("div", {className: "wc-header"}, 
-                    React.createElement("span", null, state.format.strings.title)
-                );
-        return (React.createElement("div", {className: "wc-chatview-panel"}, 
-            header, 
-            React.createElement(History_1.History, {store: this.store, selectActivity: this.selectActivityCallback}), 
-            React.createElement(Shell_1.Shell, {store: this.store})));
+                React.createElement("div", { className: "wc-header" },
+                    React.createElement("span", null, state.format.strings.title));
+        return (React.createElement("div", { className: "wc-chatview-panel" },
+            header,
+            React.createElement(History_1.History, { store: this.store, selectActivity: this.selectActivityCallback }),
+            React.createElement(Shell_1.Shell, { store: this.store })));
     };
     return Chat;
 }(React.Component));
@@ -186,6 +175,13 @@ exports.sendFiles = function (store, files) {
         }
     });
     exports.trySendMessage(store, clientActivityId);
+};
+exports.renderIfNonempty = function (value, renderer) {
+    if (value === undefined)
+        return;
+    if (typeof value === 'string' && value.length === 0)
+        return;
+    return renderer(value);
 };
 exports.konsole = {
     log: function (message) {

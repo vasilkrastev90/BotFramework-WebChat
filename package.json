@@ -13,9 +13,7 @@
     "clean": "rm -rf built",
     "minify": "webpack --optimize-minimize --optimize-dedupe",
     "start": "http-server -p 8000",
-    "pretest": "tsc -p tests",
-    "test": "mocha test/tests",
-    "foo": "mocha test/tests"
+    "test": "mocha test"
   },
   "repository": {
     "type": "git",
@@ -24,6 +22,7 @@
   "author": "Bill Barnes",
   "license": "MIT",
   "dependencies": {
+    "@reactivex/rxjs": "5.0.0-rc.5",
     "core-js": "^2.4.1",
     "he": "^1.1.0",
     "marked": "^0.3.6",
@@ -32,7 +31,6 @@
     "redux": "^3.6.0"
   },
   "devDependencies": {
-    "@reactivex/rxjs": "5.0.0-beta.12",
     "@types/chai": "^3.4.34",
     "@types/chai-subset": "^1.0.29",
     "@types/deep-freeze": "0.0.29",
@@ -50,7 +48,7 @@
     "npm-run-all": "^3.1.0",
     "source-map-loader": "^0.1.5",
     "ts-loader": "^0.8.2",
-    "typescript": "^2.0.8",
+    "typescript": "^2.1.0",
     "webpack": "^1.13.1"
   }
 }

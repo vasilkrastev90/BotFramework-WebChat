@@ -50,18 +50,19 @@ export class FormattedText extends React.Component<IFormattedTextProps, {}> {
     private renderMarkdown() {
         let src = this.props.text || '';
         src = src.replace(/<br\s*\/?>/ig, '\r\n\r\n');
-        const options: MarkedOptions = Object.assign({}, {
+        const options: MarkedOptions = {
             gfm: true,
             tables: true,
             breaks: false,
             pedantic: false,
-            sanitize: true,
+            sanitize: false,
             smartLists: true,
             silent: false,
-            smartypants: true
-        } as MarkedOptions, this.props.markdownOptions);
+            smartypants: true,
+            ... this.props.markdownOptions
+        };
         const renderer = options.renderer = new ReactRenderer(options, this.props.onImageLoad);
-        const text = Marked(src, options);
+        const text = Marked.parse(src, options);
         const elements = renderer.getElements(text);
         /*// debug
         const remaining = renderer.elements.filter(el => !!el);
@@ -218,32 +219,33 @@ class ReactRenderer implements MarkedRenderer {
         return this.addElement(<del key={this.key++}>{this.getElements(text)}</del>);
     }
 
-    link(href: string, title: string, text: string): string {
-        if (this.options.sanitize) {
-            try {
-                var prot = decodeURIComponent(He.unescape(href)).toLowerCase();
-                if (!(prot.startsWith('http://') || prot.startsWith('https://'))) {
-                    return '';
+    unescapeAndSanitizeLink(href: string) {
+        try {
+            href = He.unescape(href);
+            if (this.options.sanitize) {
+                const prot = href.toLowerCase();
+                if (!(prot.startsWith('http:') || prot.startsWith('https:'))) {
+                    return null;
                 }
-            } catch (e) {
-                return '';
             }
+        } catch (e) {
+            return null;
         }
-        return this.addElement(<a key={this.key++} {...{ href: href, title: title }}>{this.getElements(text)}</a>);
+        return href;
+    }
+
+    link(href: string, title: string, text: string): string {
+        href = this.unescapeAndSanitizeLink(href);
+        if (!href)
+            return '';
+        return this.addElement(<a key={this.key++} {...{ href, title, target: '_blank' }}>{this.getElements(text)}</a>);
     }
 
     image(href: string, title: string, text: string): string {
-        if (this.options.sanitize) {
-            try {
-                var prot = decodeURIComponent(He.unescape(href)).toLowerCase();
-                if (!(prot.startsWith('http://') || prot.startsWith('https://'))) {
-                    return '';
-                }
-            } catch (e) {
-                return '';
-            }
-        }
-        return this.addElement(<img key={this.key++} onLoad={ () => this.onImageLoad() } {...{ src: href, title: title, alt: text }} />);
+        href = this.unescapeAndSanitizeLink(href);
+        if (!href)
+            return '';
+        return this.addElement(<img key={this.key++} onLoad={ () => this.onImageLoad() } {...{ src: href, title, alt: text }} />);
     }
 
     text(text: string): string {

@@ -1,12 +1,14 @@
 import * as React from 'react';
 
-export interface SecretOrToken {
+export interface DirectLineOptions {
     secret?: string,
     token?: string
+    domain?: string,
+    webSocket?: boolean
 }
 
 export declare class DirectLine {
-    constructor(secretOrToken: SecretOrToken, domain?: string); // segment is DEPRECATED and will be removed before release
+    constructor(options: DirectLineOptions);
     start();
     end();
 }

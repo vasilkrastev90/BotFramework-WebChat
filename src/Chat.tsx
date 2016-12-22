@@ -46,14 +46,35 @@ export class Chat extends React.Component<ChatProps, {}> {
 
         konsole.log("BotChat.Chat props", props);
 
-        this.store.dispatch({ type: 'Start_Connection', user: props.user, bot: props.bot, botConnection: props.botConnection, selectedActivity: props.selectedActivity } as ConnectionAction);
-
         if (props.formatOptions)
             this.store.dispatch({ type: 'Set_Format_Options', options: props.formatOptions } as FormatAction);
 
         this.store.dispatch({ type: 'Set_Localized_Strings', strings: strings(props.locale || window.navigator.language) } as FormatAction);
+    }
 
-        props.botConnection.start();
+    private handleIncomingActivity(activity: Activity) {
+        let state = this.store.getState();
+        switch (activity.type) {
+
+            case "message":
+                this.store.dispatch({ type: activity.from.id === state.connection.user.id ? 'Receive_Sent_Message' : 'Receive_Message', activity } as HistoryAction);
+                break;
+
+            case "typing":
+                this.typingActivity$.next(activity);
+                break;
+        }
+    }
+
+    private selectActivity(activity: Activity) {
+        this.props.selectedActivity.next({ activity });
+    }
+
+    componentDidMount() {
+        let props = this.props;
+
+        this.store.dispatch({ type: 'Start_Connection', user: props.user, bot: props.bot, botConnection: props.botConnection, selectedActivity: props.selectedActivity } as ConnectionAction);
+
         this.connectionStatusSubscription = props.botConnection.connectionStatus$.subscribe(connectionStatus =>
             this.store.dispatch({ type: 'Connection_Change', connectionStatus } as ConnectionAction)
         );
@@ -82,45 +103,16 @@ export class Chat extends React.Component<ChatProps, {}> {
                 } as HistoryAction);
             });
         }
-    }
 
-    private handleIncomingActivity(activity: Activity) {
-        let state = this.store.getState();
-        switch (activity.type) {
-
-            case "message":
-                if (activity.from.id === state.connection.user.id) {
-                    this.store.dispatch({ type: 'Receive_Sent_Message', activity } as HistoryAction);
-                    break;
-                } else if (activity.text && activity.text.endsWith("//typing")) {
-                    // 'typing' activity only available with WebSockets, so this allows us to test with polling GET
-                    activity = Object.assign({}, activity, { type: 'typing' });
-                    // fall through to "typing" case 
-                } else {
-                    this.store.dispatch({ type: 'Receive_Message', activity } as HistoryAction);
-                    break;
-                }
-
-            case "typing":
-                this.typingActivity$.next(activity);
-                break;
-        }
-    }
-
-    private selectActivity(activity: Activity) {
-        this.props.selectedActivity.next({ activity });
-    }
-
-    componentDidMount() {
         this.storeUnsubscribe = this.store.subscribe(() =>
             this.forceUpdate()
         );
     }
 
     componentWillUnmount() {
+        this.connectionStatusSubscription.unsubscribe();
         this.activitySubscription.unsubscribe();
         this.typingActivitySubscription.unsubscribe();
-        this.connectionStatusSubscription.unsubscribe();
         if (this.selectedActivitySubscription)
             this.selectedActivitySubscription.unsubscribe();
         this.props.botConnection.end();
@@ -240,6 +232,12 @@ export const sendFiles = (store: ChatStore, files: FileList) => {
         }
     } as HistoryAction);
     trySendMessage(store, clientActivityId);
+}
+
+export const renderIfNonempty = (value: any, renderer: (value: any) => JSX.Element ) => {
+    if (value === undefined) return;
+    if (typeof value === 'string' && value.length === 0) return;
+    return renderer(value);
 }
 
 export const konsole = {
